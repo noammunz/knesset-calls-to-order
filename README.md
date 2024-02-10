@@ -1,4 +1,4 @@
-# Knesset Calls to Order.
+# Knesset Calls to Order
 This project aims to utilize machine learning and natural language processing (NLP) techniques to automatically classify instances of "calls to order" within the transcripts of Knesset (Israeli Parliament) sessions. By analyzing session transcripts, our goal is to identify various forms of order calls, facilitating a deeper understanding of parliamentary discourse dynamics.
 
 ## Project Overview
@@ -13,9 +13,9 @@ The Knesset Calls to Order Classifier is designed to parse through session trans
 Original Transcripts
 The original transcripts of Knesset session meetings are pivotal to our analysis. These documents provide the raw textual content from which we extract calls to order. The original meeting protocols can be accessed at the following location:
 
-Knesset Meeting Protocols - https://production.oknesset.org/pipelines/data/committees/meeting_protocols_text/files/
+[Knesset Meeting Protocols](https://production.oknesset.org/pipelines/data/committees/meeting_protocols_text/files/)
 
 Current Parsed Data
 After processing the original transcripts through our parsing algorithms, the resulting parsed data is structured and categorized for further analysis and machine learning classification. The current version of our parsed dataset is available here:
 
-Parsed Dataset - currently uploading
+[Parsed Dataset](https://file.io/QBvh7rE0tzvi)
