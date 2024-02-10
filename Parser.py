@@ -3,31 +3,80 @@ import csv
 import datetime
 import requests
 from bs4 import BeautifulSoup
+from transformers import BertTokenizer, BertForQuestionAnswering, pipeline
+import torch
+import os
 
 class Parser:
-    def __init__(self):
-        with open('data.csv', 'w', encoding='utf-8-sig', newline='') as csvfile:
+    def __init__(self, start_index=0, end_index=1000000):
+        self.question_answerer = pipeline('question-answering', model="tdklab/hebert-finetuned-hebrew-squad")
+
+        log_path = r'G:\School\Year 4\nlp\prject\log.txt'
+        urls_path = r'G:\School\Year 4\nlp\prject\urls.txt'
+        texts_path = r'G:\school_local\texts'
+        with open('my_data.csv', 'w', encoding='utf-8-sig', newline='') as csvfile:
+            print(f'STARTING')
             start_time = datetime.datetime.now()
-            print(f"Start time: {start_time.strftime('%H:%M:%S')}")
             writer = csv.writer(csvfile)
-            writer.writerow(['number', 'committee_name', 'subject', 'start_conver', 'speaker_name', 'conversation'])
-            self.urls = self.get_urls()
-            counter = 1
-            for url in self.urls:
-                text = self.get_protocol(url)
+            writer.writerow(['committee_id', 'committee_name', 'session_id', 'format', 'chairperson', 'text_id', 'speaker_name', 'conversation'])
+
+            committee_id = 0
+            skipped = 0
+            iters = 0
+            nums_files = len(os.listdir(texts_path))
+            for file_name in os.listdir(texts_path):
+                session_id = int(file_name.split('.')[0])
+                with open(os.path.join(texts_path, file_name), 'r', encoding='utf-8-sig') as file:
+                    text = file.read().split('\n')
+
+                if iters % 150 == 0:
+                    time_elapsed = str(datetime.datetime.now() - start_time)[:7]
+                    print(f'Finished {iters} out of {nums_files} --- {iters/nums_files*100:.2f}%, time elapsed: {time_elapsed},  time: {datetime.datetime.now()}\n')
+                    with open(log_path, 'a') as file:
+                        file.write(f'Finished {iters} out of {nums_files} --- {iters/nums_files*100:.2f}%, time elapsed: {time_elapsed},  time: {datetime.datetime.now()}\n')
+                
+                session_id += 1
                 if text is None or text == []:
+                    skipped += 1
+                    print(f'Failed to get text: {session_id}\n')
+                    with open(log_path, 'a') as file:
+                        file.write(f'\nFailed to get text: {session_id}\n\n')
                     continue
+
                 committee_name = self.get_committee_name(text)
-                subject = self.get_subject(text)
-                start_conver = self.get_start_conver(text)
-                conversation = self.create_conversation(text, start_conver)
-                for speaker, speaker_text in conversation:
-                    writer.writerow([counter, committee_name, subject, start_conver, speaker, speaker_text])
-                counter += 1
-                if counter % 100 == 0:
-                    time_elapsed = datetime.datetime.now() - start_time
-                    print(f"Finished {counter/len(self.urls)*100:.2f}%, time elapsed: {time_elapsed}")
-            
+                if committee_name is None:
+                    skipped += 1
+                    print(f'Failed to get committee: {session_id}\n')
+                    with open(log_path, 'a') as file:
+                        file.write(f'\nFailed to get committee: {session_id}\n\n')
+                    continue
+
+                chairperson = self.get_chairperson(text)
+                if chairperson is None:
+                    skipped += 1
+                    print(f'Failed to get chairperson: {session_id}\n')
+                    with open(log_path, 'a') as file:
+                        file.write(f'\nFailed to get chairperson: {session_id}\n\n')
+                    continue
+
+                start_index, format = self.get_start_index(text, chairperson)
+                if start_index is None:
+                    skipped += 1
+                    print(f'Failed to get start index: {session_id}\n')
+                    with open(log_path, 'a') as file:
+                        file.write(f'\nFailed to get start index: {session_id}\n\n')
+                    continue
+
+                conversation = self.get_conversation(text, start_index, format)
+                for text_id, (speaker, speaker_text) in enumerate(conversation):
+                    writer.writerow([committee_id, committee_name, session_id + 1, format,  chairperson, text_id, speaker, speaker_text])
+                
+                iters += 1
+                
+            with open(log_path, 'a') as file:
+                time_elapsed = str(datetime.datetime.now() - start_time)[:7]
+                file.write(f'Finished, skipped: {skipped}, time_elapsed: {time_elapsed}')
+                
     def get_urls(self):
         url = 'https://production.oknesset.org/pipelines/data/committees/meeting_protocols_text/files/'
         folder_urls = [url]
@@ -50,8 +99,7 @@ class Parser:
                 print(f"Failed to retrieve content from {url}. Status code: {response.status_code}")
         return urls
     
-    def get_protocol(self, url):
-        print("Getting protocol from", url)
+    def get_text(self, url):
         response = requests.get(url)
         if response.status_code == 200:
             response.encoding = 'utf-8-sig'
@@ -63,39 +111,136 @@ class Parser:
         else:
             print(f"Failed to retrieve content from {url}. Status code: {response.status_code}")
             return None
-            
+    
     def get_committee_name(self, text):
-        for i in range(1, len(text)):
-            if 'ועד' in text[i]:
-                text[i] = re.sub(r'[^א-ת ]', '', text[i])
-                return text[i]
-            
-    def get_subject(self, text):
-        if not text[0].isdigit() and text[0] != 'PAGE':
-            return text[0]
+        context = ' '.join(text[1:10])
+        question = 'מה שמה של הוועדה?'
+        if context == '':
+            return None
+        answer = self.question_answerer(question=question, context=context)['answer']
+        # handling common errors
+        match = re.search(r'\bמ?יום\b', answer)
+        if match:
+            index = match.start()
+            answer = answer[:index]
         
-    def get_start_conver(self, text):
-        count = 0
-        for row in text:
-            if 'יו"ר' in row and ':' in row and count > 20:
-                return count
-            count += 1
-        return 20
+        answer = re.sub(r'[^א-ת ]', '', answer).strip()
+        return answer
 
-    def create_conversation(self, text, line_number):
-        print("Creating conversation")
+    def get_chairperson(self, text):
+        chairperson_rows = []
+        for row in text[::-1]:
+            if ('יו"ר' in row and len(row) < 65) or ('<< יור >>' in row):
+                chairperson_rows.append(row)
+            if len(chairperson_rows) == 2:
+                break
+        
+        context = ' '.join(chairperson_rows)
+        if context == '':
+            return None
+        question = 'מה שמו של יו"ר הוועדה?'
+        answer = self.question_answerer(question=question, context=context)['answer']
+
+        # handling common errors
+        if ':' in answer:
+            index = answer.index(':')
+            answer = answer[:index]
+
+        match = re.search(r'\bהיו"ר\b', answer)
+        if match:
+            index = match.start()
+            answer = answer[index + 5:]
+        
+        answer = answer.strip()
+        return answer
+    
+    def get_start_index(self, text, chairperson):
+        start_index = None
+        if chairperson is None:
+            return None
+        
+        if '<< יור >>' in ' '.join(text):
+            # return index of first row with '<< יור >>'
+            for i, row in enumerate(text):
+                if '<< יור >>' in row:
+                    return (i, 0)
+
+        for i, row in enumerate(text):
+            if chairperson in row and row.strip()[-1] == ':':
+                return (i, 1)
+
+        if start_index is None: # second format
+            for i, row in enumerate(text[25:]):
+                if chairperson in row and ':' in row:
+                    return (i + 25, 2)
+        
+        return (None, None)
+
+    def get_conversation(self, text, start_index, format):
         conversation = []
-        if len(text) < line_number + 1:
-            conversation.append((None, text))
-            return conversation
-        name = text[line_number]
-        conversation_text = text[line_number + 1:]
-        text = ""
-        for row in conversation_text:
-            if row[-1] == ':':
-                conversation.append((name.replace('\t', ''), text.replace('\t', '')))
-                name = row
-                text = ""
-            else:
-                text += row
-        return conversation  
+        current_speaker = None
+        utterance = []
+
+        for i in range(start_index, len(text)):
+            line = text[i].strip()
+
+            if format == 0:
+                if '<<' in line and '>>' in line:
+                    speaker_start_index = line.find('<<') + 2
+                    speaker_end_index = line.find('>>')
+                    speaker = line[speaker_start_index:speaker_end_index].strip()                
+                        
+                    name_start_index = line.find('>>', speaker_end_index) + 2
+                    name_end_index = line.find(':', name_start_index)
+                    name = line[name_start_index:name_end_index].strip()
+
+                    if '(' in name:
+                        name = name[:name.index('(')].strip()
+
+                    match = re.search(r'\bהיו"ר\b', name)
+                    if match:
+                        index = match.start()
+                        name = name[index + 5:]
+
+                    if utterance:
+                        conversation.append((current_speaker, '\n'.join(utterance)))
+                        utterance = []
+
+                    current_speaker = name
+                else:
+                    utterance.append(line)
+            elif format == 1:
+                if line.endswith(':'):
+                    if utterance:
+                        conversation.append((current_speaker, '. '.join(utterance)))
+                        utterance = []
+                    current_speaker = line[:-1]
+                    match = re.search(r'\bהיו"ר\b', current_speaker)  
+                    if match:
+                        index = match.start()
+                        current_speaker = current_speaker[index + 5:]
+                else:
+                    utterance.append(line)
+            elif format == 2:
+                if ':' in line:
+                    speaker, text_content = line.split(':', 1)
+                    if current_speaker != speaker:
+                        if utterance:
+                            conversation.append((current_speaker, '. '.join(utterance)))
+                            utterance = []
+                        current_speaker = speaker
+                        match = re.search(r'\bהיו"ר\b', current_speaker)  
+                        if match:
+                            index = match.start()
+                            current_speaker = current_speaker[index + 5:]
+                    utterance.append(text_content.strip())
+                else:
+                    utterance.append(line)
+
+        if utterance:
+            conversation.append((current_speaker, '. '.join(utterance)))
+
+        return conversation
+
+if __name__ == '__main__':
+    parser = Parser()
