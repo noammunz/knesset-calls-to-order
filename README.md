@@ -5,9 +5,9 @@ This project aims to utilize machine learning and natural language processing (N
 The Knesset Calls to Order Classifier is designed to parse through session transcripts, employing NLP algorithms to detect and classify instances where a speaker calls for order. This process involves semantic analysis, pattern recognition, and supervised learning models trained on a labeled dataset of transcript segments.
 
 ## Project Features
-- **Transcript Parsing: Automated processing of Knesset session transcripts to extract text for analysis.
-- **Semantic Tagging: Application of semantic analysis to tag transcript segments with relevant metadata, enhancing the dataset's depth.
-- **Machine Learning Classification: Utilization of NLP and machine learning models to classify segments as calls to order, with categorization based on the context and urgency.
+- Transcript Parsing: Automated processing of Knesset session transcripts to extract text for analysis.
+- Semantic Tagging: Application of semantic analysis to tag transcript segments with relevant metadata, enhancing the dataset's depth.
+- Machine Learning Classification: Utilization of NLP and machine learning models to classify segments as calls to order, with categorization based on the context and urgency.
 
 ## Data
 Original Transcripts
