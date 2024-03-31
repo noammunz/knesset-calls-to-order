@@ -1,16 +1,9 @@
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
-from tqdm import tqdm
-import os
 import re
-from my_parser import Parser
-from collections import defaultdict, Counter
+import pandas as pd
 
 def normalized_levenshtein(s1, s2):
         if len(s1) < len(s2):
-            return levenshtein(s2, s1)
+            return normalized_levenshtein(s2, s1)
 
         if len(s2) == 0:
             return len(s1)
@@ -26,3 +19,9 @@ def normalized_levenshtein(s1, s2):
             previous_row = current_row
 
         return previous_row[-1] / max(len(s1), len(s2))
+
+def load_data(data_path):
+    return pd.read_csv(data_path)
+
+def save_data(df, save_path):
+    df.to_csv(save_path, index=False, encoding='utf-8-sig')

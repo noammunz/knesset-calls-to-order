@@ -1,36 +1,40 @@
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
-from tqdm import tqdm
 import os
 import re
-from my_parser import Parser
-from collections import defaultdict, Counter
 import utils
-
-# a class for preprocessing the data
+import pandas as pd
+from tqdm import tqdm
+from transformers import pipeline
+from collections import defaultdict
+from tokenizers.decoders import WordPiece
 
 class Preprocessing:
-    def __init__(self, data_path, save_path):
-        self.data_path = data_path
-        self.save_path = save_path
+    """
+    This class is responsible for preprocessing the data.
+    """
+    def __init__(self, data_path, save_path, base_path="", filter_data=True, create_new=False):
+        self.data_path = os.path.join(base_path, data_path)
+        self.save_path = os.path.join(base_path, save_path)
 
-        data = self.load_data()
-        data = self.unify_committees(data, 'unified_committee_name')
-        data = self.add_call_to_order_label(data, 'call_to_order')
-        self.save_data(data, 'preprocessed_data.csv')
+        # if save path already exists, don't create new data
+        if os.path.exists(self.save_path) and not create_new:
+            self.data_path = self.save_path
+            self.data = utils.load_data(data_path)
+            return
+        
+        self.data = utils.load_data(data_path)
+        self.data = self.data[['committee_name', 'session_id', 'chairperson', 'speaker_name', 'conversation']]
+        self.data.dropna(inplace=True)
+        self.unify_committees()
+        self.accurate_conv()
+        self.data.sort_values(by=['session_id'], inplace=True)
+        utils.save_data(self.data, self.save_path)
     
-    def load_data(self):
-        data = pd.read_csv(self.data_path)
-        return data
-    
-    def save_data(self, data, name):
-        data.to_csv(self.save_path + name, index=False, encoding='utf-8-sig')
-    
-    def unify_committees(self, data, new_col_name):
-        committees = data['committee_name'].unique()
-        committees = [c for c in committees if c is 'ועד' in c]
+    def unify_committees(self):
+        """
+        This function unifies similar committee names.
+        """
+        committees = self.data['committee_name'].unique()
+        committees = [c for c in committees if 'ועד' in c]
 
         committee_groups = defaultdict(list)
         for c in committees:
@@ -57,19 +61,44 @@ class Preprocessing:
                     if committee_mapping[similar_name][1] > score:
                         committee_mapping[similar_name] = (chosen_name, score)
         
-        data[new_col_name] = data['committee_name'].apply(lambda x: committee_mapping[x][0] if x in committee_mapping else x)
-        return data
-    
-    def add_call_to_order_label(self, data, new_col_name):
-        calls_to_order = ['אני קורא אותך לסדר', 'אני קוראת אותך לסדר', 'זאת אזהרה אחרונה',
-            'קריאה לסדר', 'קריאת ראשונה לסדר', 'אנא, השתק והקשב',
-            'אני מבקש ממך לשבת', 'אני מבקשת ממך לשבת', 'אני דורש שקט',
-            'אני דורשת שקט', 'זו קריאה לשקט', 'אתה מתבקש להתיישב',
-            'את מתבקשת להתיישב', 'אני פוסק את הדיון', 'אני פוסקת את הדיון',
-            'נא להשתתק', 'נא לחדול מהרעש', 'הפסקת הדיון עכשיו',
-            'אני מזהיר אותך לאחרונה', 'אני מזהירה אותך לאחרונה', 'קורא אותך',
-            'קוראת אותך', 'סדר נא', 'שקט בבקשה',
-            'סדר בבקשה',]
+        self.data['committee_name'] = self.data['committee_name'].apply(lambda x: committee_mapping[x][0] if x in committee_mapping else x)
 
-        data[new_col_name] = data['conversation'].apply(lambda x: 1 if any([call in x for call in calls_to_order]) else 0)
-        return data
+    def accurate_conv(self):
+        """
+        make sure long conversations are split into smaller ones
+        """
+        oracle = pipeline('ner', model='dicta-il/dictabert-ner', aggregation_strategy='simple')
+        oracle.tokenizer.backend_tokenizer.decoder = WordPiece()
+        remove_from_df = []
+        add_to_df = {}
+        for inx, conv in enumerate(self.data['conversation']):
+            if len(conv.split()) > 40:
+                entities = oracle(conv)
+                speakers = [speaker for speaker in entities if speaker['entity_group'] == 'PER']
+                if len(speakers) == 0:
+                    continue
+                remove_from_df.append(inx)
+                prev = speakers.pop(0)
+                if len(speakers) == 0:
+                    if add_to_df.get(inx) is None:
+                        add_to_df[inx] = []
+                    add_to_df[inx].append((prev['word'], conv))
+                for speaker in speakers:
+                    speaker_turn = conv[prev['end']:speaker['start']]
+                    speaker_turn = re.sub(r'\b(?:יו"ר|יור|היו"ר)\b', '', speaker_turn)
+                    if add_to_df.get(inx) is None:
+                        add_to_df[inx] = []
+                    add_to_df[inx].append((prev['word'], speaker_turn))
+                    prev = speaker
+            print(f"Done {inx}/{len(self.data)}", end='\r')
+        print("\n")
+        i = 0
+        for inx in remove_from_df:
+            print(f"Replace {inx}/{len(remove_from_df)}", end='\r')
+            row = self.data.iloc[inx - i]
+            self.data.drop(self.data.index[inx - i], inplace=True)
+            i += 1
+            for speaker, turn in add_to_df[inx]:
+                new_index = self.data.index.max() + 1
+                new_row = {'committee_name':row[0], 'session_id':row[1], 'chairperson':row[2], 'speaker_name': speaker, 'conversation': turn}
+                self.data.loc[new_index] = new_row
