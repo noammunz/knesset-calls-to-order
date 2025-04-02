@@ -1,39 +1,76 @@
-# Knesset Calls to Order
+# Knesset Calls to Order Classifier
 
-This project aims to utilize machine learning and natural language processing (NLP) techniques to automatically classify instances of "calls to order" within the transcripts of Knesset (Israeli Parliament) sessions. By analyzing session transcripts, our goal is to identify various forms of order calls, facilitating a deeper understanding of parliamentary discourse dynamics.
+This project leverages machine learning and natural language processing (NLP) techniques to automatically identify and classify "calls to order" within Israeli Parliament (Knesset) session transcripts. Our system analyzes parliamentary discourse dynamics by detecting when speakers are called to maintain decorum during debates.
 
 ## Project Overview
 
-The Knesset Calls to Order Classifier is designed to parse through session transcripts, employing NLP algorithms to detect and classify instances where a speaker calls for order. This process involves semantic analysis, pattern recognition, and supervised learning models trained on a labeled dataset of transcript segments.
+The Knesset Calls to Order Classifier systematically processes session transcripts using advanced NLP algorithms to:
+- Detect instances where the chairperson calls for order
+- Classify these interventions based on context, urgency, and other parameters
+- Provide insights into parliamentary discourse patterns and procedural enforcement
 
-## Project Features
+## Key Features
 
-- **Transcript Parsing**: Automated processing of Knesset session transcripts to extract text for analysis.
-- **Machine Learning Classification**: Utilization of NLP and machine learning models to classify segments as calls to order, with categorization based on the context and urgency.
+- **Automated Transcript Processing**: Convert raw Knesset protocols into structured, analyzable text
+- **ML-Based Classification**: Implement supervised learning models to identify calls to order
+- **Context Analysis**: Examine the relationship between conversation length and procedural interventions
+- **Multi-dimensional Feature Analysis**: Incorporate speaker, chairperson, and committee vectors for enhanced prediction accuracy
 
-## Data
+## Data Sources and Processing
 
-**Original Transcripts**:
-The original transcripts of Knesset session meetings are pivotal to our analysis. These documents provide the raw textual content from which we extract calls to order. The original meeting protocols can be accessed at the following location:
-
+### Source Data
+The project uses official Knesset meeting protocols available at:
 [Knesset Meeting Protocols](https://production.oknesset.org/pipelines/data/committees/meeting_protocols_text/files/)
 
-**Preprocessing**:
-Our preprocessing steps are essential for preparing the data for analysis. The preprocessing steps are defined in the following image and can be found in the files "Create_protocol_txt" and "Parser":
+### Data Processing Pipeline
+Our preprocessing workflow transforms raw protocols into structured data suitable for ML analysis:
+
 ![Preprocessing Steps](https://github.com/nogaschw/Call-to-order/assets/80199057/0a9bf47f-4816-4203-8d3d-aea7769e4882)
 
-## Our Work
+The complete preprocessing implementation can be found in:
+- `Create_protocol_txt.py`: Initial text extraction and formatting
+- `Parser.py`: Structural parsing and feature extraction
 
-**Windows Context**:
-We investigated whether there is any correlation between long conversations and calls to order within Knesset sessions. This analysis provides insights into the dynamics of parliamentary discourse.
+## Analysis and Results
 
-**Feature Enhancement**:
-We augmented our analysis by incorporating vectors of the chairperson, speaker, and committee involved in each segment. This enriched feature set allows for a more nuanced understanding of the context surrounding calls to order.
+### Contextual Window Analysis
+We investigated correlations between conversation length and the frequency of calls to order, revealing patterns in parliamentary discourse management.
 
-**Experience Results**:
-The results of our experiments and analyses are documented in "results.ipynb". These findings shed light on the effectiveness of our classification models and provide insights into the patterns observed in Knesset session transcripts.
+### Feature Enhancement
+Our models incorporate:
+- Speaker identity vectors
+- Chairperson characteristics
+- Committee-specific contextual information
+- Temporal patterns within sessions
 
-**Basic Statistics**:
-We conducted basic statistical analysis on the data to gain a better understanding of its characteristics. This analysis is documented in "statistic.ipynb" and provides valuable insights into the distribution and properties of the dataset.
+### Results and Findings
+Detailed experimental results and model performance metrics are documented in `results.ipynb`, demonstrating the effectiveness of our classification approach.
 
-Feel free to reach out if you have any questions or need further clarification on any aspect of our project!
+### Statistical Analysis
+Comprehensive statistical insights about the dataset and call-to-order patterns are available in `statistic.ipynb`, including:
+- Frequency distributions
+- Temporal trends
+- Committee-specific patterns
+- Speaker correlation analysis
+
+## Getting Started
+
+1. Clone this repository
+2. Install required dependencies: `pip install -r requirements.txt`
+3. Run the preprocessing pipeline: `python Create_protocol_txt.py` followed by `python Parser.py`
+4. Explore the Jupyter notebooks for analysis and results
+
+## Future Work
+
+- Implement real-time classification for live Knesset sessions
+- Expand the model to classify different types of parliamentary interventions
+- Develop a visualization dashboard for parliamentary discourse analysis
+- Comparative analysis with other parliamentary systems
+
+## Contributing
+
+We welcome contributions to enhance this project. Please feel free to submit pull requests or open issues for discussion.
+
+## Contact
+
+For questions, suggestions, or collaboration opportunities, please open an issue in this repository.
